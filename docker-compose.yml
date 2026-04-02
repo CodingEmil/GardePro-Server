@@ -20,28 +20,6 @@ services:
       # - IMMICH_API_KEY=dein-api-key
       # - IMMICH_ALBUM_NAME=GardePro Wildkamera
     restart: unless-stopped
-services:
-  gardepro:
-    build: .
-    container_name: gardepro-gallery
-    ports:
-      - "5000:5000"
-    volumes:
-      - ./data:/data
-    environment:
-      - TZ=Europe/Berlin
-      - ARCHIVE_DIR=/data/archive
-      - DATA_DIR=/data
-      # Kamera
-      # - CAMERA_IP=192.168.8.1
-      # - CAMERA_PORT=8080
-      # - SYNC_INTERVAL_MINUTES=30
-      # Immich (optional)
-      # - IMMICH_ENABLED=true
-      # - IMMICH_SERVER_URL=http://immich:2283
-      # - IMMICH_API_KEY=dein-api-key
-      # - IMMICH_ALBUM_NAME=GardePro Wildkamera
-    restart: unless-stopped
     
     # -------------------------------------------------------------
     # 🐧 LINUX HARDWARE ZUGRIFF (FÜR BLUETOOTH & WLAN)
