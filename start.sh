@@ -8,4 +8,5 @@ sudo nmcli radio wifi on
 echo "Starte GardePro Server..."
 sudo docker compose up -d
 
-echo "Fertig! Der Server sollte nun unter http://localhost:5000 erreichbar sein."
+IP=$(hostname -I | awk '{print $1}')
+echo "Fertig! Der Server sollte nun unter http://${IP}:5000 erreichbar sein."
