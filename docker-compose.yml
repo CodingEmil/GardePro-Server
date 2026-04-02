@@ -26,9 +26,9 @@ services:
     # Entferne die '#' vor den folgenden Zeilen, wenn du den Server 
     # auf einem Linux-System (z.B. Raspberry Pi) ausführst:
     # -------------------------------------------------------------
-    # network_mode: "host"
-    # privileged: true
-    # volumes:
-    #   - ./data:/data
-    #   - /run/dbus:/run/dbus:ro
+    network_mode: "host"
+    privileged: true
+    volumes:
+      - ./data:/data
+      - /run/dbus:/run/dbus:ro
     # -------------------------------------------------------------

@@ -419,6 +419,10 @@ def auto_connect(ip: str, port: int, mac: str, ssid: str, pwd: str = "", adapter
             log.info("[OK] Bluetooth Aufwachsignal erfolgreich gesendet.")
         except Exception as e:
             log.error("[ERR] Bluetooth Wake fehlgeschlagen: %s", e)
+            if "No such file or directory" in str(e) or "ENOENT" in str(e) or getattr(e, "errno", None) == 2:
+                log.error("TIPP: Wenn dieses Skript in Docker läuft, fehlt der Zugriff auf Bluetooth (D-Bus).")
+                log.error("-> Bitte in 'docker-compose.yml' den Linux-Hardware-Bereich einkommentieren:")
+                log.error("   Speziell: network_mode: 'host', privileged: true und das Volume für /var/run/dbus")
             log.error("=> Abbruch: Ohne erfolgreichen Bluetooth-Weckruf wird kein WLAN-Aufbau versucht.")
             return False
     else:
