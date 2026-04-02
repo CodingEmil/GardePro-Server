@@ -25,8 +25,10 @@ Die Galerie ist unter **http://localhost:5000** erreichbar.
 
 Medien und Datenbank werden im Ordner `./data/` gespeichert.
 
-> **Hinweis:** Bluetooth-Wakeup und WLAN-Steuerung sind im Docker-Container nicht verfügbar. 
-> Für diese Features muss die App nativ auf einem Windows-PC mit Bluetooth laufen.
+> **Hinweis zu Bluetooth & WLAN (OS-abhängig):**
+> Docker isoliert den Hardware-Zugriff.
+> - **Unter Linux (z. B. Raspberry Pi, Debian)**: Docker kann mit entsprechenden Rechten auf lokales WLAN und Bluetooth zugreifen. In der `docker-compose.yml` ist am Ende ein entsprechender Block vorbereitet, den du für Linux einfach einkommentieren (die `#` am Zeilenanfang entfernen) musst.
+> - **Unter Windows / macOS**: Docker Desktop läuft in einer virtuellen Maschine (WSL2/Hyper-V). Der direkte Zugriff auf die PC-interne WLAN- und Bluetooth-Hardware aus dem Container heraus ist daher **nicht** möglich. Wenn du das Projekt auf Windows betreibst und die automatische Kamera-Verbindung nutzen willst, musst du die **native Ausführung** (siehe unten) verwenden.
 
 ### Nativ (Windows)
 

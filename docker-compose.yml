@@ -20,3 +20,15 @@ services:
       # - IMMICH_API_KEY=dein-api-key
       # - IMMICH_ALBUM_NAME=GardePro Wildkamera
     restart: unless-stopped
+    
+    # -------------------------------------------------------------
+    # 🐧 LINUX HARDWARE ZUGRIFF (FÜR BLUETOOTH & WLAN)
+    # Entferne die '#' vor den folgenden Zeilen, wenn du den Server 
+    # auf einem Linux-System (z.B. Raspberry Pi) ausführst:
+    # -------------------------------------------------------------
+    # network_mode: "host"
+    # privileged: true
+    # volumes:
+    #   - ./data:/data
+    #   - /var/run/dbus:/var/run/dbus
+    # -------------------------------------------------------------
