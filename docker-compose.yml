@@ -4,8 +4,6 @@ services:
     container_name: gardepro-gallery
     ports:
       - "5000:5000"
-    volumes:
-      - ./data:/data
     environment:
       - TZ=Europe/Berlin
       - ARCHIVE_DIR=/data/archive
@@ -30,5 +28,6 @@ services:
     privileged: true
     volumes:
       - ./data:/data
+      - /var/run/dbus:/var/run/dbus
       - /run/dbus:/run/dbus:ro
     # -------------------------------------------------------------

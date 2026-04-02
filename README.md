@@ -28,6 +28,10 @@ Medien und Datenbank werden im Ordner `./data/` gespeichert.
 > **Hinweis zu Bluetooth & WLAN (OS-abhängig):**
 > Docker isoliert den Hardware-Zugriff.
 > - **Unter Linux (z. B. Raspberry Pi, Debian)**: Docker kann mit entsprechenden Rechten auf lokales WLAN und Bluetooth zugreifen. In der `docker-compose.yml` ist am Ende ein entsprechender Block vorbereitet, den du für Linux einfach einkommentieren (die `#` am Zeilenanfang entfernen) musst.
+> - **Unter Proxmox (LXC Container)**: Wenn du Docker innerhalb eines LXC-Containers auf Proxmox betreibst, musst du dem Container den Bluetooth-Adapter vom Host explizit durchreichen, da er sonst im Container fehlt:
+>   1. Installiere `bluez` auf dem **Proxmox Host** (nicht im Container): `apt install bluez`
+>   2. Finde den Pfad zum Bluetooth-Gerät auf dem Host: `find /sys/devices/ -name "*bluetooth*"` oder `hcitool dev` 
+>   3. Reiche das Gerät an den Container durch: `pct set <vmid> --dev0 path=/pfad/zum/bluetooth/adapter` (Ersetze `<vmid>` mit der ID deines Containers und den Pfad mit dem Ergebnis aus Schritt 2)
 > - **Unter Windows / macOS**: Docker Desktop läuft in einer virtuellen Maschine (WSL2/Hyper-V). Der direkte Zugriff auf die PC-interne WLAN- und Bluetooth-Hardware aus dem Container heraus ist daher **nicht** möglich. Wenn du das Projekt auf Windows betreibst und die automatische Kamera-Verbindung nutzen willst, musst du die **native Ausführung** (siehe unten) verwenden.
 
 ### Nativ (Windows)
