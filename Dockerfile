@@ -14,9 +14,9 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# System deps for Pillow
+# System deps for Pillow and Bluetooth (Linux)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        libjpeg62-turbo libpng16-16 zlib1g \
+        libjpeg62-turbo libpng16-16 zlib1g bluez dbus \
     && rm -rf /var/lib/apt/lists/*
 
 # Python deps
