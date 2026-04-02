@@ -404,6 +404,20 @@ def connect_wlan(ssid: str, pwd: str = "", adapter: str = "") -> None:
         if adapter:
             cmd_connect.append(f"interface={adapter}")
         subprocess.call(cmd_connect, stdout=subprocess.DEVNULL)
+    elif platform.system().lower() == "linux":
+        cmd_connect = ["nmcli", "dev", "wifi", "connect", ssid]
+        if pwd:
+            cmd_connect.extend(["password", pwd])
+        if adapter:
+            cmd_connect.extend(["ifname", adapter])
+        try:
+            res = subprocess.run(cmd_connect, capture_output=True, text=True, timeout=20)
+            if res.returncode == 0:
+                log.info(f"[OK] nmcli erfolgreich verbunden.")
+            else:
+                log.warning(f"[WRN] nmcli Warnung/Fehler: {res.stderr.strip()[:100]}... {res.stdout.strip()[:100]}")
+        except Exception as e:
+            log.error(f"[ERR] Exception bei WLAN via nmcli: {e}")
 
 def auto_connect(ip: str, port: int, mac: str, ssid: str, pwd: str = "", adapter: str = "") -> bool:
     log.info("=== Schritt 1: Prüfe Kamera-Verbindung (%s:%s) ===", ip, port)
