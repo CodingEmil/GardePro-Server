@@ -158,3 +158,61 @@ def upload_new_media(settings: dict) -> dict:
 
     log.info("Immich fertig: %d hochgeladen, %d Fehler, %d uebersprungen", uploaded, errors, skipped)
     return {"uploaded": uploaded, "errors": errors, "skipped": skipped}
+
+
+def check_asset_exists(server_url: str, api_key: str, asset_id: str) -> bool:
+    """Check if an asset still exists on Immich by fetching its metadata."""
+    url = server_url.rstrip("/") + f"/api/assets/{asset_id}"
+    try:
+        r = _requests.get(url, headers=_headers(api_key), timeout=10)
+        if r.status_code == 200:
+            return True
+        elif r.status_code == 404 or (r.status_code == 400 and "Not found" in r.text):
+            return False
+        r.raise_for_status()
+    except Exception as e:
+        log.warning("Fehler beim Pruefen von Asset %s: %s", asset_id, e)
+        # If network error, we assume it MIGHT exist to prevent deleting local tracking IDs erroneously.
+        return True
+    return False
+
+
+def validate_immich_sync(settings: dict) -> dict:
+    """Validate that all locally marked assets still exist on Immich. Resets them if not."""
+    server_url = settings.get("immich_server_url", "").strip()
+    api_key = settings.get("immich_api_key", "").strip()
+
+    if not server_url or not api_key:
+        return {"validated": 0, "reset": 0, "errors": 0, "reason": "not configured"}
+
+    items = db.get_uploaded_to_immich()
+    if not items:
+        return {"validated": 0, "reset": 0, "errors": 0}
+
+    log.info("Immich-Validierung: Pruefe %d hochgeladene Dateien...", len(items))
+
+    reset_count = 0
+    errors = 0
+
+    session = _requests.Session()
+    session.headers.update(_headers(api_key))
+
+    for item in items:
+        asset_id = item["immich_asset_id"]
+        try:
+            url = server_url.rstrip("/") + f"/api/assets/{asset_id}"
+            r = session.get(url, timeout=10)
+            if r.status_code == 404 or (r.status_code == 400 and "Not found" in r.text):
+                # Asset is gone from Immich!
+                db.clear_immich_asset_id(item["id"])
+                reset_count += 1
+                log.info("Immich-Validierung: Asset %s (Datei %s) nicht vorhanden. Status zurueckgesetzt.", asset_id, item["filename"])
+            elif r.status_code != 200:
+                log.warning("Immich-Validierung: Unerwarteter Status %d fuer Asset %s (%s)", r.status_code, asset_id, r.text[:100])
+                errors += 1
+        except Exception as e:
+            errors += 1
+            log.warning("Immich-Validierung: Fehler bei Asset %s: %s", asset_id, e)
+
+    log.info("Immich-Validierung fertig: %d geprueft, %d zurueckgesetzt, %d Fehler", len(items), reset_count, errors)
+    return {"validated": len(items), "reset": reset_count, "errors": errors}

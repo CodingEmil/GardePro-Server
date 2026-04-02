@@ -365,6 +365,14 @@ def api_immich_upload():
     threading.Thread(target=immich.upload_new_media, args=(settings,), daemon=True).start()
     return jsonify({"ok": True, "message": "Upload gestartet"})
 
+@app.route("/api/immich/validate", methods=["POST"])
+def api_immich_validate():
+    settings = sync.load_settings()
+    if not settings.get("immich_server_url") or not settings.get("immich_api_key"):
+        return jsonify({"ok": False, "error": "Immich nicht konfiguriert"}), 400
+    threading.Thread(target=immich.validate_immich_sync, args=(settings,), daemon=True).start()
+    return jsonify({"ok": True, "message": "Validierung gestartet"})
+
 # ── Media files ───────────────────────────────────────────────────────────
 
 THUMB_DIR = os.path.join(ARCHIVE_DIR, "thumbs")

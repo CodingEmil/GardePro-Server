@@ -571,14 +571,6 @@ def run_sync() -> dict:
 
         log.info("=== Sync fertig: %d neu, %d Fehler ===", new_count, len(errors))
 
-        # Immich upload (post-sync, errors never block sync)
-        if settings.get("immich_enabled") and settings.get("immich_server_url") and settings.get("immich_api_key"):
-            try:
-                import immich
-                result = immich.upload_new_media(settings)
-                log.info("Immich: %d hochgeladen, %d Fehler", result.get("uploaded", 0), result.get("errors", 0))
-            except Exception as ie:
-                log.error("Immich-Upload fehlgeschlagen: %s", ie)
 
     except Exception as e:
         log.error("Sync fehlgeschlagen: %s", e)
@@ -592,16 +584,45 @@ def run_sync() -> dict:
 
 # ── Scheduler ─────────────────────────────────────────────────────────────
 
+def run_immich_upload() -> None:
+    """Independent scheduler job for Immich upload to avoid blocking camera Wi-Fi."""
+    with _state_lock:
+        state = _read_state()
+        if state.get("sync_running"):
+            log.info("Immich-Upload uebersprungen — Kamera-Sync laeuft gerade aktiv.")
+            return
+
+    settings = load_settings()
+    if settings.get("immich_enabled") and settings.get("immich_server_url") and settings.get("immich_api_key"):
+        try:
+            import immich
+            log.info("Starte unabhaengigen Immich-Upload...")
+            result = immich.upload_new_media(settings)
+            # Only print log if there was actually something to upload or errors occurred
+            if result.get("uploaded", 0) > 0 or result.get("errors", 0) > 0:
+                log.info("Immich: %d hochgeladen, %d Fehler", result.get("uploaded", 0), result.get("errors", 0))
+        except Exception as ie:
+            log.error("Immich-Upload fehlgeschlagen: %s", ie)
+
 def _reschedule(settings: dict) -> None:
     interval = settings.get("sync_interval_minutes", 30)
     enabled  = settings.get("auto_sync_enabled", True)
+    immich_enabled = settings.get("immich_enabled", False)
+
     if _scheduler.get_job("sync"):
         _scheduler.remove_job("sync")
+    if _scheduler.get_job("immich_sync"):
+        _scheduler.remove_job("immich_sync")
+
     if enabled and interval > 0:
         _scheduler.add_job(run_sync, "interval", minutes=interval, id="sync")
-        log.info("Scheduler: alle %d Minuten", interval)
+        log.info("Scheduler: Kamera-Sync alle %d Minuten", interval)
     else:
-        log.info("Scheduler: deaktiviert (nur manuell)")
+        log.info("Scheduler: Kamera-Sync deaktiviert (nur manuell)")
+
+    if immich_enabled:
+        _scheduler.add_job(run_immich_upload, "interval", minutes=15, id="immich_sync")
+        log.info("Scheduler: Immich-Upload alle 15 Minuten")
 
 def _clear_stuck_sync_flag() -> None:
     """Reset sync_running on startup — any in-progress sync from a previous process is dead."""

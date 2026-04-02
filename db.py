@@ -175,6 +175,21 @@ def set_immich_asset_id(fid: int, asset_id: str) -> None:
         con.execute("UPDATE media_items SET immich_asset_id=? WHERE id=?", (asset_id, fid))
 
 
+def get_uploaded_to_immich() -> list[dict]:
+    """Return all non-deleted items that have been uploaded to Immich."""
+    with _conn() as con:
+        rows = con.execute(
+            "SELECT * FROM media_items WHERE is_deleted=0 AND immich_asset_id IS NOT NULL ORDER BY id"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def clear_immich_asset_id(fid: int) -> None:
+    """Clear the Immich asset ID for a media item (e.g. if deleted on server)."""
+    with _conn() as con:
+        con.execute("UPDATE media_items SET immich_asset_id=NULL WHERE id=?", (fid,))
+
+
 def trash_count() -> int:
     with _conn() as con:
         return con.execute("SELECT COUNT(*) FROM media_items WHERE is_deleted=1").fetchone()[0]

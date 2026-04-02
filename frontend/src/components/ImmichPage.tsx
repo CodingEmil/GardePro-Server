@@ -18,6 +18,7 @@ export function ImmichPage() {
   const [pushing, setPushing]   = useState(false);
   const [pushResult, setPushResult] = useState<string | null>(null);
   const [configured, setConfigured] = useState(true);
+  const [validating, setValidating] = useState(false);
 
   const loadStats = useCallback(async () => {
     try {
@@ -70,6 +71,24 @@ export function ImmichPage() {
     }
   };
 
+  const handleValidate = async () => {
+    setValidating(true);
+    setPushResult(null);
+    try {
+      const res = await fetch('/api/immich/validate', { method: 'POST' });
+      const json = await res.json();
+      if (json.ok) {
+        setPushResult('Abgleich gestartet - siehe Logs unten');
+      } else {
+        setPushResult(json.error || 'Fehler beim Starten');
+      }
+    } catch {
+      setPushResult('Verbindung zum Server fehlgeschlagen');
+    } finally {
+      setValidating(false);
+    }
+  };
+
   if (!configured) {
     return (
       <div className="px-4 pb-8 max-w-md mx-auto">
@@ -110,6 +129,14 @@ export function ImmichPage() {
         className="w-full bg-accent text-bg rounded py-2 text-sm font-medium hover:bg-accent/90 transition-colors disabled:opacity-40 mb-2"
       >
         {pushing ? 'Wird gestartet...' : stats?.pending === 0 ? 'Alles hochgeladen' : `${stats?.pending ?? 0} Dateien jetzt hochladen`}
+      </button>
+      
+      <button
+        onClick={handleValidate}
+        disabled={validating || (stats?.uploaded === 0)}
+        className="w-full bg-surface border border-border text-text rounded py-2 text-sm font-medium hover:bg-zinc-800 transition-colors disabled:opacity-40 mb-2 mt-2"
+      >
+        {validating ? 'Wird geprüft...' : 'Datenbank mit Immich abgleichen'}
       </button>
       {pushResult && (
         <p className="text-xs text-muted mb-4">{pushResult}</p>
