@@ -163,6 +163,15 @@ def mark_seen() -> None:
         _write_state(state)
     db.mark_all_seen()
 
+def reset_sync_state() -> None:
+    """Reset the sync progress so the next sync scans all camera files from scratch."""
+    with _state_lock:
+        state = _read_state()
+        state["last_synced_id"] = 0
+        state["new_since_id"] = 0
+        _write_state(state)
+        log.info("Sync-Status (last_synced_id) manuell auf 0 zurückgesetzt.")
+
 # ── Camera HTTP session ────────────────────────────────────────────────────
 
 def _make_session(ip: str, port: int) -> requests.Session:
@@ -245,6 +254,7 @@ def _download_item(session, ip: str, port: int, item: dict) -> bool:
     # type 1 = JPG (verified), type 2 = MP4 (unverified — may be /VIDEO or /MOV)
     ext  = "jpg" if item.get("type") == 1 else "mp4"
     path = os.path.join(ARCHIVE_DIR, f"{fid}.{ext}")
+    temp_path = path + ".temp"
 
     if db.is_downloaded(fid) and os.path.exists(path):
         return True
@@ -252,24 +262,13 @@ def _download_item(session, ip: str, port: int, item: dict) -> bool:
     url = f"http://{ip}:{port}/file/{fid}/{ext.upper()}"
     for attempt in range(3):
         try:
-            _wake(session, ip, port)
             r = session.get(url, timeout=45, stream=True)
             if r.status_code == 200:
-                # Keep-alive thread: camera drops WiFi after ~10s without /cmd/standby/reset.
-                # A large video download takes longer than that → ping every 8s in background.
-                stop_keepalive = threading.Event()
-                def _keepalive_loop():
-                    while not stop_keepalive.wait(8):
-                        _wake(session, ip, port)
-                ka_thread = threading.Thread(target=_keepalive_loop, daemon=True)
-                ka_thread.start()
-                try:
-                    with open(path, "wb") as f:
-                        for chunk in r.iter_content(chunk_size=128 * 1024):
-                            if chunk:
-                                f.write(chunk)
-                finally:
-                    stop_keepalive.set()   # always stop keepalive, even on error
+                with open(temp_path, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=128 * 1024):
+                        if chunk:
+                            f.write(chunk)
+                os.replace(temp_path, path)
                 fsize = os.path.getsize(path)
                 db.insert_media(fid, f"{fid}.{ext}", "video" if ext == "mp4" else "photo", fsize, item)
                 # Native thumbnail download (best-effort)
@@ -287,6 +286,12 @@ def _download_item(session, ip: str, port: int, item: dict) -> bool:
                 time.sleep(1)
             else:
                 log.error("TIMEOUT %s.%s nach 3 Versuchen", fid, ext)
+        finally:
+            if os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except Exception:
+                    pass
     return False
 
 # ── Main sync job ─────────────────────────────────────────────────────────
@@ -555,11 +560,39 @@ def run_sync() -> dict:
     try:
         discovered = _scan_new_items(session, ip, port, last_id)
 
-        for fid, item in sorted(discovered.items(), reverse=True):
-            if _download_item(session, ip, port, item):
-                new_count += 1
-            else:
-                errors.append(fid)
+        # Globaler Keep-Alive während des Downloads
+        stop_keepalive = threading.Event()
+        def _global_keepalive():
+            while not stop_keepalive.wait(8):
+                _wake(session, ip, port)
+
+        if discovered:
+            ka_thread = threading.Thread(target=_global_keepalive, daemon=True)
+            ka_thread.start()
+
+        try:
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            # 5 Worker simulieren die App (schnell, aber stabil für die Kamera-Hardware)
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                futures = {
+                    executor.submit(_download_item, session, ip, port, item): fid
+                    for fid, item in sorted(discovered.items(), reverse=True)
+                }
+                
+                for future in as_completed(futures):
+                    fid = futures[future]
+                    try:
+                        success = future.result()
+                        if success:
+                            new_count += 1
+                        else:
+                            errors.append(fid)
+                    except Exception as e:
+                        log.error("Unerwarteter Fehler bei %s: %s", fid, e)
+                        errors.append(fid)
+        finally:
+            if discovered:
+                stop_keepalive.set()
 
         with _state_lock:
             state = _read_state()

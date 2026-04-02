@@ -174,6 +174,12 @@ def api_wifi_adapters():
 def api_settings_get():
     return jsonify({"ok": True, "data": sync.load_settings()})
 
+@app.route("/api/settings/reset-sync", methods=["POST"])
+def api_settings_reset_sync():
+    """Reset last_synced_id to 0 to force a full re-scan."""
+    sync.reset_sync_state()
+    return jsonify({"ok": True})
+
 @app.route("/api/settings", methods=["POST"])
 def api_settings_post():
     body = request.get_json(silent=True) or {}

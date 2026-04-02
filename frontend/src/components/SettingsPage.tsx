@@ -28,6 +28,8 @@ export function SettingsPage() {
   const timersRef               = useRef<ReturnType<typeof setTimeout>[]>([]);
   const [immichStatus, setImmichStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
   const [immichError, setImmichError]   = useState('');
+  const [resetting, setResetting]       = useState(false);
+  const [resetResult, setResetResult]   = useState('');
 
   useEffect(() => {
     fetch('/api/settings').then(r => r.json()).then(j => setForm(j.data));
@@ -85,6 +87,23 @@ export function SettingsPage() {
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  };
+
+  const handleResetSync = async () => {
+    setResetting(true);
+    setResetResult('');
+    try {
+      const res = await fetch('/api/settings/reset-sync', { method: 'POST' });
+      if (res.ok) {
+        setResetResult('Fortschritt komplett auf 0 gesetzt!');
+      } else {
+        setResetResult('Fehler beim Zurücksetzen');
+      }
+    } catch {
+      setResetResult('Verbindung fehlgeschlagen');
+    }
+    setResetting(false);
+    setTimeout(() => setResetResult(''), 4000);
   };
 
   if (!form) return <div className="flex justify-center py-20 text-muted">Lade…</div>;
@@ -278,6 +297,25 @@ export function SettingsPage() {
             {immichStatus === 'ok' && <p className="text-green-400 text-xs">Immich-Server erfolgreich erreicht.</p>}
             {immichStatus === 'error' && <p className="text-red-400 text-xs">{immichError}</p>}
           </div>
+        </div>
+      </div>
+
+      {/* ── Erweiterte Optionen ──────────────────────────── */}
+      <div className="border-t border-border mt-6 pt-4 mb-8">
+        <h3 className="text-text font-semibold text-sm mb-2">Erweiterte Optionen</h3>
+        <p className="text-xs text-muted mb-4">
+          Falls Bilder auf der Kamera im normalen Sync-Lauf fälschlicherweise übersprungen werden, kannst du hier den Fortschritt auf null zurücksetzen. 
+          Das System prüft beim nächsten Sync jede Kamera-Datei nochmals und lädt fehlende Elemente verlässlich herunter.
+        </p>
+        <div className="flex gap-4 items-center">
+          <button
+            onClick={handleResetSync}
+            disabled={resetting}
+            className="px-4 py-1.5 rounded text-sm font-medium border border-border text-text hover:bg-surface-hover transition-colors disabled:opacity-40"
+          >
+            {resetting ? 'Reset...' : 'Sync-Fortschritt zurücksetzen'}
+          </button>
+          {resetResult && <span className="text-xs text-green-400">{resetResult}</span>}
         </div>
       </div>
 
