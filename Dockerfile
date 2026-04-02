@@ -19,11 +19,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libjpeg62-turbo libpng16-16 zlib1g \
     && rm -rf /var/lib/apt/lists/*
 
-# Python deps (bleak excluded — Bluetooth only works natively)
+# Python deps
 COPY requirements.txt ./
-RUN grep -v bleak requirements.txt > requirements-docker.txt \
-    && pip install --no-cache-dir -r requirements-docker.txt \
-    && rm requirements-docker.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Application code
 COPY server.py sync.py db.py immich.py ./
