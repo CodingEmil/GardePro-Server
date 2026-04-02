@@ -1,0 +1,14 @@
+{
+  "camera_ip": "192.168.8.1",
+  "camera_port": 8080,
+  "sync_interval_minutes": 30,
+  "auto_sync_enabled": true,
+  "bt_mac_address": "",
+  "wifi_ssid": "",
+  "wifi_password": "",
+  "wifi_adapter": "",
+  "immich_enabled": false,
+  "immich_server_url": "",
+  "immich_api_key": "",
+  "immich_album_name": ""
+}
