@@ -308,20 +308,21 @@ async def _bt_wake_async(mac: str) -> None:
     from bleak import BleakClient, BleakScanner
     import asyncio
     
-    log.info("Suche Bluetooth-Gerät %s (Scan für 10s)...", mac)
-    device = await BleakScanner.find_device_by_address(mac, timeout=10.0)
-    
-    if device is None:
-        log.warning("Gerät nicht im Scan gefunden. Versuche direkte Verbindung (Fallback)...")
-        device = mac  # Fallback auf reinen String für BleakClient
-    else:
-        log.info("Gerät im Suchlauf gefunden: %s", device.name or "Unbekannt")
-
     # Versuche die Verbindung maximal 3 Mal aufzubauen
     for attempt in range(1, 4):
+        log.info("Suche Bluetooth-Gerät %s (Scan-Versuch %d/3 für 10s)...", mac, attempt)
+        device = await BleakScanner.find_device_by_address(mac, timeout=10.0)
+        
+        if device is None:
+            log.warning("Gerät nicht im Scan gefunden. Versuche direkte Verbindung (Fallback)...")
+            client_target = mac
+        else:
+            log.info("Gerät im Suchlauf gefunden: %s", device.name or "Unbekannt")
+            client_target = device
+
         try:
             log.info("Verbindungsversuch %d/3 via Bluetooth...", attempt)
-            async with BleakClient(device, timeout=20.0) as client:
+            async with BleakClient(client_target, timeout=20.0) as client:
                 log.info("Verbunden! Sende Aufwachsignal...")
                 for i in range(3):
                     await client.write_gatt_char(BT_WAKE_UUID, BT_WAKE_PAYLOAD)
