@@ -420,12 +420,6 @@ def connect_wlan(ssid: str, pwd: str = "", adapter: str = "") -> bool:
         subprocess.call(cmd_connect, stdout=subprocess.DEVNULL)
         return True
     elif platform.system().lower() == "linux":
-        cmd_connect = ["nmcli", "dev", "wifi", "connect", ssid]
-        if pwd:
-            cmd_connect.extend(["password", pwd])
-        if adapter:
-            cmd_connect.extend(["ifname", adapter])
-            
         for attempt in range(1, 4):
             try:
                 # Trigger a scan first
@@ -434,11 +428,33 @@ def connect_wlan(ssid: str, pwd: str = "", adapter: str = "") -> bool:
                 pass
                 
             try:
+                cmd_connect = ["nmcli", "dev", "wifi", "connect", ssid]
+                if pwd:
+                    cmd_connect.extend(["password", pwd])
+                if adapter:
+                    cmd_connect.extend(["ifname", adapter])
+                
                 res = subprocess.run(cmd_connect, capture_output=True, text=True, timeout=20)
                 if res.returncode == 0:
                     log.info(f"[OK] nmcli erfolgreich verbunden.")
                     return True
                 else:
+                    # Workaround für den Linux nmcli-Bug ("key-mgmt: property is missing"), 
+                    # der auftritt, wenn das neu gefundene Netzwerk noch nicht komplett im Scan-Cache ist.
+                    if "key-mgmt" in res.stderr and pwd:
+                        log.info("Sicherheitsinformationen fehlen im Scan, lege manuelles Profil für WPA-PSK an...")
+                        subprocess.run(["nmcli", "connection", "delete", ssid], capture_output=True)
+                        ifname_arg = adapter if adapter else "*"
+                        subprocess.run(["nmcli", "connection", "add", "type", "wifi", "con-name", ssid, "ifname", ifname_arg, "ssid", ssid], capture_output=True)
+                        subprocess.run(["nmcli", "connection", "modify", ssid, "wifi-sec.key-mgmt", "wpa-psk", "wifi-sec.psk", pwd], capture_output=True)
+                        res_up = subprocess.run(["nmcli", "connection", "up", ssid], capture_output=True, text=True, timeout=20)
+                        
+                        if res_up.returncode == 0:
+                            log.info("[OK] nmcli Profil manuell erstellt und verbunden.")
+                            return True
+                        else:
+                            log.warning(f"[WRN] Manuelle nmcli Profilverbindung fehlgeschlagen: {res_up.stderr.strip()[:100]}")
+                            
                     log.warning(f"[WRN] nmcli Fehler (Versuch {attempt}/3): {res.stderr.strip()[:100]}")
                     if attempt < 3:
                         log.info("Warte 5s auf Kamera AP...")
