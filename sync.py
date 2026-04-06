@@ -426,13 +426,12 @@ def connect_wlan(ssid: str, pwd: str = "", adapter: str = "") -> bool:
                     log.info(f"[OK] nmcli erfolgreich verbunden.")
                     return True
                 else:
-                    if "No network with SSID" in res.stderr and attempt < 3:
-                        log.warning(f"[WRN] WLAN '{ssid}' (noch) nicht gefunden. Warte auf Kamera AP (Versuch {attempt}/3)...")
+                    log.warning(f"[WRN] nmcli Fehler (Versuch {attempt}/3): {res.stderr.strip()[:100]}")
+                    if attempt < 3:
+                        log.info("Warte 5s auf Kamera AP...")
                         time.sleep(5)
                     else:
-                        log.warning(f"[WRN] nmcli Warnung/Fehler: {res.stderr.strip()[:100]}... {res.stdout.strip()[:100]}")
-                        if attempt == 3 or "No network with SSID" not in res.stderr:
-                            break
+                        break
             except Exception as e:
                 log.error(f"[ERR] Exception bei WLAN via nmcli: {e}")
                 break
