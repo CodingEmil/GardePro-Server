@@ -311,10 +311,22 @@ async def _bt_wake_async(mac: str) -> None:
     # Versuche die Verbindung maximal 3 Mal aufzubauen
     for attempt in range(1, 4):
         log.info("Suche Bluetooth-Gerät %s (Scan-Versuch %d/3 für 10s)...", mac, attempt)
-        device = await BleakScanner.find_device_by_address(mac, timeout=10.0)
+        try:
+            geräte = await BleakScanner.discover(timeout=10.0)
+            if geräte:
+                log.info("Gefundene Bluetooth-Geräte im Scan:")
+                for g in geräte:
+                    log.info(" - %s (%s)", g.address, g.name or "Unbekannt")
+            else:
+                log.info("Keine Bluetooth-Geräte im Scan gefunden.")
+                
+            device = next((d for d in geräte if d.address.upper() == mac.upper()), None)
+        except Exception as scan_err:
+            log.warning("Fehler beim Bluetooth-Scan: %s", scan_err)
+            device = None
         
         if device is None:
-            log.warning("Gerät nicht im Scan gefunden. Versuche direkte Verbindung (Fallback)...")
+            log.warning("Ziel-Gerät (%s) nicht im Scan gefunden. Versuche direkte Verbindung (Fallback)...", mac)
             client_target = mac
         else:
             log.info("Gerät im Suchlauf gefunden: %s", device.name or "Unbekannt")
@@ -331,9 +343,10 @@ async def _bt_wake_async(mac: str) -> None:
             log.info("Aufwachsignal erfolgreich gesendet.")
             return
         except Exception as e:
-            log.warning("Fehler bei Verbindungsversuch %d: %s", attempt, e)
+            err_msg = str(e) or repr(e)
+            log.warning("Fehler bei Verbindungsversuch %d: %s", attempt, err_msg)
             if attempt == 3:
-                raise
+                raise Exception(f"Bluetooth-Verbindung endgültig fehlgeschlagen: {err_msg}")
             await asyncio.sleep(2)
 
 def bt_wake(mac: str) -> None:
