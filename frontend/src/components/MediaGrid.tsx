@@ -78,7 +78,8 @@ export function MediaGrid({ items, onSeen, onDelete }: Props) {
   const [selectedIds, setSelectedIds]     = useState<Set<number>>(new Set());
   const [lastSelected, setLastSelected]   = useState<number | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; type: 'single' | 'bulk'; id?: number }>({ isOpen: false, type: 'single' });
-  
+  const [isDownloading, setIsDownloading] = useState(false);
+
   const slides = items.map(item =>
     item.type === 'photo'
       ? { src: `/media/${item.filename}` }
@@ -125,6 +126,37 @@ export function MediaGrid({ items, onSeen, onDelete }: Props) {
     setDeleteConfirm({ isOpen: true, type: 'bulk' });
   };
 
+  const bulkDownload = async () => {
+    if (selectedIds.size === 0) return;
+    setIsDownloading(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const res = await fetch('/api/media/download/zip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      });
+      if (!res.ok) throw new Error('Download fehlgeschlagen');
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `gardepro_export_${new Date().toISOString().split('T')[0]}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      setSelectedIds(new Set());
+    } catch (e) {
+      console.error(e);
+      alert('Fehler beim Herunterladen');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   const confirmBulkDelete = async () => {
     const idsToTrash = Array.from(selectedIds);
     setSelectedIds(new Set());
@@ -164,7 +196,15 @@ export function MediaGrid({ items, onSeen, onDelete }: Props) {
           <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 bg-surface border border-border shadow-2xl rounded-full px-6 py-3 flex items-center justify-between gap-6">
             <span className="text-text font-medium text-sm whitespace-nowrap">{selectedIds.size} ausgewählt</span>
             <div className="flex gap-2">
-              <button 
+              <button
+                onClick={bulkDownload}
+                disabled={isDownloading}
+                className="text-xs px-4 py-2 bg-blue-600/20 text-blue-500 border border-blue-900/50 rounded-full hover:bg-blue-600/30 transition-colors cursor-pointer disabled:opacity-50"
+                title="Herunterladen"
+              >
+                {isDownloading ? "Lädt..." : "Herunterladen"}
+              </button>
+              <button
                 onClick={bulkDelete}
                 className="text-xs px-4 py-2 bg-red-600/20 text-red-500 border border-red-900/50 rounded-full hover:bg-red-600/30 transition-colors cursor-pointer"
                 title="In den Papierkorb"

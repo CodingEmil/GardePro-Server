@@ -44,7 +44,31 @@ def api_delete_media(fid):
     if not filename:
         return jsonify({"ok": False, "error": "Nicht gefunden"}), 404
     return jsonify({"ok": True})
-
+@app.route("/api/media/download/zip", methods=["POST"])
+def api_download_zip():
+    data = request.get_json()
+    if not data or "ids" not in data:
+        return jsonify({"ok": False, "error": "Keine IDs angegeben"}), 400
+    
+    import io, zipfile
+    items = db.get_all_media()
+    selected_items = [i for i in items if i["id"] in data["ids"]]
+    
+    memory_file = io.BytesIO()
+    with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for item in selected_items:
+            path = os.path.join(ARCHIVE_DIR, item["filename"])
+            if os.path.exists(path):
+                zf.write(path, item["filename"])
+                
+    memory_file.seek(0)
+    from flask import send_file
+    return send_file(
+        memory_file,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name="gardepro_export.zip"
+    )
 # ── Trash ─────────────────────────────────────────────────────────────────
 
 @app.route("/api/trash")

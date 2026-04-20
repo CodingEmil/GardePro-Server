@@ -9,18 +9,25 @@ log = logging.getLogger("gardepro.ai")
 _BASE_DIR = os.path.dirname(__file__)
 _MODELS_DIR = os.path.join(_BASE_DIR, "models")
 
-# We use MobileNet SSD (COCO dataset) which is very fast and lightweight for Raspberry Pi
-MODEL_URL = "https://github.com/chuanqi305/MobileNet-SSD/raw/master/mobilenet_iter_73000.caffemodel"
-CONFIG_URL = "https://raw.githubusercontent.com/chuanqi305/MobileNet-SSD/master/deploy.prototxt"
+# YOLOv8 ONNX Format
+# Wenn du ein eigenes Modell trainierst, lege es hier als 'best.onnx' (oder aehnlich) ab
+CUSTOM_MODEL_PATH = os.path.join(_MODELS_DIR, "best.onnx")
 
-CAFFEMODEL_PATH = os.path.join(_MODELS_DIR, "mobilenet_iter_73000.caffemodel")
-PROTOTXT_PATH = os.path.join(_MODELS_DIR, "deploy.prototxt")
+# Github URL für das unmodifizierte Standard YOLOv8 Nano Modell (Coco Dataset)
+FALLBACK_MODEL_URL = "https://github.com/ibaiGorordo/ONNX-YOLOv8-Object-Detection/raw/main/models/yolov8n.onnx"
+DEFAULT_MODEL_PATH = os.path.join(_MODELS_DIR, "yolov8n.onnx")
 
-# Filter out classes we usually care about in front of a trail cam (cats, dogs, birds, sheep, cow, horse, bear, person)
-CLASSES = ["background", "aeroplane", "bicycle", "bird", "boat",
-           "bottle", "bus", "car", "cat", "chair", "cow", "diningtable",
-           "dog", "horse", "motorbike", "person", "pottedplant", "sheep",
-           "sofa", "train", "tvmonitor"]
+# YOLOv8 base COCO Classes
+CLASSES = [
+    "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat", "traffic light",
+    "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat", "dog", "horse", "sheep", "cow",
+    "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee",
+    "skis", "snowboard", "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard", "tennis racket", "bottle",
+    "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple", "sandwich", "orange",
+    "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch", "potted plant", "bed",
+    "dining table", "toilet", "tv", "laptop", "mouse", "remote", "keyboard", "cell phone", "microwave", "oven",
+    "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"
+]
 
 TARGET_CLASSES = {"bird", "cat", "dog", "horse", "sheep", "cow", "bear", "person"}
 
@@ -28,81 +35,119 @@ _net = None
 
 def _download_model():
     os.makedirs(_MODELS_DIR, exist_ok=True)
-    if not os.path.exists(PROTOTXT_PATH):
-        log.info("Downloading AI config (deploy.prototxt) ...")
-        urllib.request.urlretrieve(CONFIG_URL, PROTOTXT_PATH)
-    if not os.path.exists(CAFFEMODEL_PATH):
-        log.info("Downloading AI model (mobilenet_iter_73000.caffemodel) ...")
-        urllib.request.urlretrieve(MODEL_URL, CAFFEMODEL_PATH)
+    
+    # 1. Bevorzuge lokales, selbst trainiertes Modell (best.onnx)
+    if os.path.exists(CUSTOM_MODEL_PATH):
+        return CUSTOM_MODEL_PATH
+        
+    # 2. Wenn das nicht existiert, nutze lokales default (yolov8n.onnx)
+    if os.path.exists(DEFAULT_MODEL_PATH):
+        return DEFAULT_MODEL_PATH
+        
+    # 3. Sonst downloade das default
+    log.info("Lade Standard YOLOv8 Modell herunter (yolov8n.onnx) ...")
+    try:
+        urllib.request.urlretrieve(FALLBACK_MODEL_URL, DEFAULT_MODEL_PATH)
+    except Exception as e:
+        log.error(f"Fehler beim Download des Default-Modells: {e}")
+    return DEFAULT_MODEL_PATH
 
 def _get_net():
     global _net
     if _net is None:
-        _download_model()
-        log.info("Loading MobileNet SSD AI Model into memory...")
-        _net = cv2.dnn.readNetFromCaffe(PROTOTXT_PATH, CAFFEMODEL_PATH)
+        model_path = _download_model()
+        log.info(f"Lade YOLOv8 ONNX Modell in den Arbeitsspeicher: {model_path}")
+        _net = cv2.dnn.readNetFromONNX(model_path)
     return _net
 
 def detect_animals(image_path: str) -> list[dict]:
-    """
-    Run object detection on an image file.
-    Returns a list of detected objects: [{"label": "Katze", "confidence": 0.8, "box": [x1, y1, x2, y2]}]
-    """
     try:
         net = _get_net()
         image = cv2.imread(image_path)
         if image is None:
-            log.warning(f"Could not read image {image_path} for AI detection")
+            log.warning(f"Konnte Bild {image_path} nicht lesen.")
             return []
-
-        (h, w) = image.shape[:2]
-        blob = cv2.dnn.blobFromImage(cv2.resize(image, (300, 300)), 0.007843, (300, 300), 127.5)
-
+        
+        orig_h, orig_w = image.shape[:2]
+        
+        # Das meiste YOLOv8-Training nutzt 640x640
+        input_w, input_h = 640, 640
+        
+        # BGR zu RGB (swapRB=True) und Skalierung (1/255.0)
+        blob = cv2.dnn.blobFromImage(image, 1/255.0, (input_w, input_h), swapRB=True, crop=False)
         net.setInput(blob)
-        detections = net.forward()
+        
+        # Forward pass liefert Outout Shape (1, 84, 8400)
+        preds = net.forward()
+        preds = np.transpose(preds[0]) # transformiere zu (8400, 84)
 
-        detected_items = []
+        boxes = []
+        confidences = []
+        class_ids = []
 
-        for i in np.arange(0, detections.shape[2]):
-            confidence = detections[0, 0, i, 2]
-            
-            # Filter out weak detections (confidence > 40%)
+        # Parse alle Zeilen
+        for row in preds:
+            # Klassenscores starten ab Index 4
+            classes_scores = row[4:]
+            class_id = np.argmax(classes_scores)
+            confidence = classes_scores[class_id]
+
             if confidence > 0.40:
-                idx = int(detections[0, 0, i, 1])
-                tag = CLASSES[idx]
+                # Koordinaten liegen skaliert auf den 640x640 Input vor
+                cx, cy, w, h = row[0:4]
                 
-                # We only want to keep tags we care about
-                if tag in TARGET_CLASSES:
-                    # Translate to German for nicer frontend display
-                    translation = {
-                        "bird": "Vogel",
-                        "cat": "Katze",
-                        "dog": "Hund",
-                        "horse": "Pferd",
-                        "sheep": "Schaf",
-                        "cow": "Kuh",
-                        "person": "Mensch",
-                        "bear": "Bär"
-                    }
-                    translated_tag = translation.get(tag, tag)
-                    
-                    # Extract bounding box (normalized 0.0 to 1.0)
-                    box = detections[0, 0, i, 3:7].tolist() # [startX, startY, endX, endY]
-                    
-                    # Ensure coordinates are within image boundaries
-                    startX = max(0.0, min(1.0, box[0]))
-                    startY = max(0.0, min(1.0, box[1]))
-                    endX = max(0.0, min(1.0, box[2]))
-                    endY = max(0.0, min(1.0, box[3]))
-                    
-                    detected_items.append({
-                        "label": translated_tag,
-                        "confidence": float(confidence),
-                        "box": [startX, startY, endX, endY]
-                    })
+                # Berechne obere linke Ecke (auf 0.0 - 1.0 normalisiert)
+                x_min = (cx - w / 2) / input_w
+                y_min = (cy - h / 2) / input_h
+                w_rel = w / input_w
+                h_rel = h / input_h
+
+                boxes.append([x_min, y_min, w_rel, h_rel])
+                confidences.append(float(confidence))
+                class_ids.append(int(class_id))
+        
+        # Listen reduzieren, falls nichts gefunden wurde
+        if not boxes:
+            return []
+            
+        # Non-Maximum Suppression um überlappende Boxen zu filtern
+        indices = cv2.dnn.NMSBoxes(boxes, confidences, 0.40, 0.40)
+        
+        detected_items = []
+        
+        # Flatten falls nötig
+        if len(indices) > 0 and isinstance(indices[0], (tuple, list, np.ndarray)):
+            indices = [i[0] for i in indices]
+
+        for i in indices:
+            box = boxes[i]
+            class_id = class_ids[i]
+            conf = confidences[i]
+            tag = CLASSES[class_id] if class_id < len(CLASSES) else "unknown"
+
+            # Filter auf Taggings die uns tatsächlich interessieren (Oder alle, wenn du Custom-Klassen hast!)
+            if tag in TARGET_CLASSES:
+                translation = {
+                    "bird": "Vogel", "cat": "Katze", "dog": "Hund", 
+                    "horse": "Pferd", "sheep": "Schaf", "cow": "Kuh",
+                    "person": "Mensch", "bear": "Bär"
+                }
+                translated_tag = translation.get(tag, tag)
+                
+                x_min, y_min, w_rel, h_rel = box
+                
+                startX = max(0.0, min(1.0, x_min))
+                startY = max(0.0, min(1.0, y_min))
+                endX = max(0.0, min(1.0, x_min + w_rel))
+                endY = max(0.0, min(1.0, y_min + h_rel))
+
+                detected_items.append({
+                    "label": translated_tag,
+                    "confidence": float(conf),
+                    "box": [startX, startY, endX, endY]
+                })
 
         return detected_items
 
     except Exception as e:
-        log.error(f"AI Detection failed on {image_path}: {e}")
-        return []
+        log.error(f"Fehler bei AI Erkennung {image_path}: {e}")
