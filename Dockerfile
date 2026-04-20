@@ -24,7 +24,7 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Application code
-COPY server.py sync.py db.py immich.py ./
+COPY server.py sync.py db.py immich.py ai.py scan_existing.py ./
 
 # Frontend build from stage 1
 COPY --from=frontend /dist ./dist
