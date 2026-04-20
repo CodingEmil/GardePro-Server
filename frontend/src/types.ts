@@ -7,6 +7,7 @@ export interface MediaItem {
   file_size: number | null;
   downloaded_at: string | null;
   camera_meta: string | null;
+  tags?: string; // JSON string (could be string[] or {label: string, confidence: number, box: number[]}[] )
 }
 
 export type FilterType = 'all' | 'photo' | 'video';
@@ -18,6 +19,11 @@ export interface SyncStatus {
   new_count: number;
   interval_minutes: number;
   auto_enabled: boolean;
+  storage?: {
+    total: number;
+    used: number;
+    free: number;
+  };
 }
 
 export interface Settings {

@@ -26,7 +26,9 @@ def init_db() -> None:
                 is_new        INTEGER DEFAULT 1,
                 is_favorite   INTEGER DEFAULT 0,
                 is_deleted    INTEGER DEFAULT 0,
-                camera_meta   TEXT
+                camera_meta   TEXT,
+                immich_asset_id TEXT DEFAULT NULL,
+                tags          TEXT DEFAULT '[]'
             )
         """)
         # Add is_deleted column to existing DBs that were created before this column existed
@@ -34,9 +36,9 @@ def init_db() -> None:
             con.execute("ALTER TABLE media_items ADD COLUMN is_deleted INTEGER DEFAULT 0")
         except Exception:
             pass  # column already exists
-        # Add immich_asset_id column for Immich integration
+        # Add tags column for local AI animal detection
         try:
-            con.execute("ALTER TABLE media_items ADD COLUMN immich_asset_id TEXT DEFAULT NULL")
+            con.execute("ALTER TABLE media_items ADD COLUMN tags TEXT DEFAULT '[]'")
         except Exception:
             pass  # column already exists
     _migrate_existing_archive()
@@ -194,6 +196,11 @@ def trash_count() -> int:
     with _conn() as con:
         return con.execute("SELECT COUNT(*) FROM media_items WHERE is_deleted=1").fetchone()[0]
 
+
+def set_tags(fid: int, tags: list[str]) -> None:
+    """Save detected AI tags for a media item."""
+    with _conn() as con:
+        con.execute("UPDATE media_items SET tags=? WHERE id=?", (json.dumps(tags), fid))
 
 def toggle_favorite(fid: int) -> bool:
     """Toggle favorite flag for given id. Returns new favorite state."""

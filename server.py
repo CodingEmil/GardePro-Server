@@ -101,12 +101,18 @@ def api_sync_reset():
     sync._clear_stuck_sync_flag()
     return jsonify({"ok": True})
 
+import shutil
+
 @app.route("/api/sync/status")
 def api_sync_status():
     state    = sync.load_state()
     settings = sync.load_settings()
     items    = db.get_all_media()
     new_count = sum(1 for i in items if i.get("is_new"))
+    
+    # Calculate storage of the data directory
+    total, used, free = shutil.disk_usage(sync._DATA_DIR)
+    
     return jsonify({
         "ok":              True,
         "running":         state.get("sync_running", False),
@@ -115,6 +121,11 @@ def api_sync_status():
         "new_count":       new_count,
         "interval_minutes": settings.get("sync_interval_minutes", 30),
         "auto_enabled":    settings.get("auto_sync_enabled", True),
+        "storage": {
+            "total": total,
+            "used": used,
+            "free": free
+        }
     })
 
 @app.route("/api/seen", methods=["POST"])

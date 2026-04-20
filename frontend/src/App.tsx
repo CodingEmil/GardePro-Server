@@ -27,6 +27,14 @@ export default function App() {
     reload();
   };
 
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
+
   return (
     <div className="min-h-screen bg-bg text-text">
       <header className="sticky top-0 z-20 bg-surface border-b border-border px-4 py-3 flex items-center gap-3">
@@ -49,6 +57,14 @@ export default function App() {
         )}
 
         <div className="ml-auto flex items-center gap-3">
+          {status?.storage && (
+             <div className="hidden sm:flex text-xs items-center gap-1.5 px-2 py-1 bg-surface border border-border rounded-md" title={`Total: ${formatBytes(status.storage.total)}\nFrei: ${formatBytes(status.storage.free)}`}>
+               <span className="text-muted">💾</span>
+               <span className={status.storage.free < 5 * 1024 * 1024 * 1024 ? "text-red-400" : "text-muted"}>
+                 {formatBytes(status.storage.used)} / {formatBytes(status.storage.total)}
+               </span>
+             </div>
+          )}
           {status?.running && (
             <span className="text-accent text-xs animate-pulse">⟳ Synchronisiert…</span>
           )}

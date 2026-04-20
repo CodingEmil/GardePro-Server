@@ -210,6 +210,38 @@ export function MediaGrid({ items, onSeen, onDelete }: Props) {
                       </span>
                     )}
 
+                    {/* AI Bounding Boxes overlay */}
+                    {(() => {
+                      let parsedTags: Array<string | {label: string, confidence?: number, box?: number[]}> = [];
+                      try {
+                        if (item.tags) parsedTags = JSON.parse(item.tags);
+                      } catch(e) {}
+                      
+                      return parsedTags.map((tag, tIdx) => {
+                        if (typeof tag === 'object' && tag.box) {
+                          const [x1, y1, x2, y2] = tag.box;
+                          return (
+                            <div 
+                              key={`box-${item.id}-${tIdx}`}
+                              className="absolute border border-accent rounded-sm z-[5] pointer-events-none"
+                              style={{
+                                left: `${x1 * 100}%`,
+                                top: `${y1 * 100}%`,
+                                width: `${(x2 - x1) * 100}%`,
+                                height: `${(y2 - y1) * 100}%`,
+                                boxShadow: '0 0 4px rgba(74,222,128,0.4) inset, 0 0 4px rgba(74,222,128,0.4)',
+                              }}
+                            >
+                              <span className="absolute -top-3.5 -left-px bg-accent text-bg text-[8px] font-bold px-0.5 rounded-t-sm whitespace-nowrap">
+                                {(tag as any).label}
+                              </span>
+                            </div>
+                          );
+                        }
+                        return null;
+                      });
+                    })()}
+
                     {/* CHECKBOX Overlay */}
                     <div 
                       className={"absolute top-1.5 left-1.5 z-20 w-5 h-5 sm:w-6 sm:h-6 rounded border flex items-center justify-center transition-colors shadow-sm cursor-pointer " + (isSelected ? "border-accent bg-accent" : "border-white/60 bg-black/40 hover:border-white opacity-0 group-hover:opacity-100")}

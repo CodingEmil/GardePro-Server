@@ -1,6 +1,7 @@
 """GardePro sync engine — incremental download + APScheduler + log buffer."""
 import atexit, os, json, time, threading, logging
 import db
+import ai
 from collections import deque
 from datetime import datetime
 import requests
@@ -271,12 +272,27 @@ def _download_item(session, ip: str, port: int, item: dict) -> bool:
                 os.replace(temp_path, path)
                 fsize = os.path.getsize(path)
                 db.insert_media(fid, f"{fid}.{ext}", "video" if ext == "mp4" else "photo", fsize, item)
+                
                 # Native thumbnail download (best-effort)
+                thumb_downloaded = False
                 if load_settings().get("use_native_thumbnails"):
                     thumb_dir = os.path.join(ARCHIVE_DIR, "thumbs")
                     thumb_path = os.path.join(thumb_dir, f"{fid}.jpg")
                     if not os.path.exists(thumb_path):
-                        download_native_thumbnail(session, ip, port, fid, thumb_path)
+                        thumb_downloaded = download_native_thumbnail(session, ip, port, fid, thumb_path)
+                
+                # ── Run AI Animal Detection ──
+                # For videos, try to run on the thumbnail if available. For photos, run on the file.
+                try:
+                    if ext == "jpg":
+                        tags = ai.detect_animals(path)
+                        if tags: db.set_tags(fid, tags)
+                    elif thumb_downloaded:
+                        tags = ai.detect_animals(thumb_path)
+                        if tags: db.set_tags(fid, tags)
+                except Exception as e:
+                    log.warning("KI-Fehler bei Item %s: %s", fid, e)
+
                 log.info("✓ %s.%s heruntergeladen", fid, ext)
                 return True
             log.warning("HTTP %d für %s.%s", r.status_code, fid, ext)
@@ -337,14 +353,33 @@ async def _bt_wake_async(mac: str) -> None:
             async with BleakClient(client_target, timeout=20.0) as client:
                 log.info("Verbunden! Sende Aufwachsignal...")
                 for i in range(3):
-                    await client.write_gatt_char(BT_WAKE_UUID, BT_WAKE_PAYLOAD)
+                    try:
+                        await client.write_gatt_char(BT_WAKE_UUID, BT_WAKE_PAYLOAD, response=False)
+                    except EOFError:
+                        log.info("Die Kamera hat die Bluetooth-Verbindung getrennt (startet vermutlich WLAN).")
+                        break
+                    except Exception as e:
+                        if "Not connected" in str(e) or "not connected" in str(e).lower() or getattr(e, "name", "") == "org.bluez.Error.Failed":
+                            log.info("Verbindung beim Schreiben getrennt. WLAN startet vermutlich.")
+                            break
+                        raise
                     await asyncio.sleep(0.5)
                 await asyncio.sleep(2)
             log.info("Aufwachsignal erfolgreich gesendet.")
             return
+        except EOFError:
+            log.info("EOFError: Kamera hat Bluetooth-Verbindung getrennt (Typisches Verhalten bei WLAN-Start).")
+            return
         except Exception as e:
+<<<<<<< HEAD
             err_msg = str(e) or repr(e)
             log.warning("Fehler bei Verbindungsversuch %d: %s", attempt, err_msg)
+=======
+            if "EOF" in str(e) or "Not connected" in str(e):
+                log.info("Verbindungsabbruch: Kamera startet vermutlich WLAN (%s).", e)
+                return
+            log.warning("Fehler bei Verbindungsversuch %d: %s", attempt, e)
+>>>>>>> 7b70975 (feat: integrate AI animal detection and enhance media item database schema)
             if attempt == 3:
                 raise Exception(f"Bluetooth-Verbindung endgültig fehlgeschlagen: {err_msg}")
             await asyncio.sleep(2)
