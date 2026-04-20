@@ -371,15 +371,11 @@ async def _bt_wake_async(mac: str) -> None:
             log.info("EOFError: Kamera hat Bluetooth-Verbindung getrennt (Typisches Verhalten bei WLAN-Start).")
             return
         except Exception as e:
-<<<<<<< HEAD
             err_msg = str(e) or repr(e)
-            log.warning("Fehler bei Verbindungsversuch %d: %s", attempt, err_msg)
-=======
-            if "EOF" in str(e) or "Not connected" in str(e):
-                log.info("Verbindungsabbruch: Kamera startet vermutlich WLAN (%s).", e)
+            if "EOF" in err_msg or "Not connected" in err_msg:
+                log.info("Verbindungsabbruch: Kamera startet vermutlich WLAN (%s).", err_msg)
                 return
-            log.warning("Fehler bei Verbindungsversuch %d: %s", attempt, e)
->>>>>>> 7b70975 (feat: integrate AI animal detection and enhance media item database schema)
+            log.warning("Fehler bei Verbindungsversuch %d: %s", attempt, err_msg)
             if attempt == 3:
                 raise Exception(f"Bluetooth-Verbindung endgültig fehlgeschlagen: {err_msg}")
             await asyncio.sleep(2)
