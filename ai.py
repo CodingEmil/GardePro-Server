@@ -18,18 +18,21 @@ FALLBACK_MODEL_URL = "https://github.com/ibaiGorordo/ONNX-YOLOv8-Object-Detectio
 DEFAULT_MODEL_PATH = os.path.join(_MODELS_DIR, "yolov8n.onnx")
 
 # YOLOv8 base COCO Classes
-CLASSES = [
-    "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat", "traffic light",
-    "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat", "dog", "horse", "sheep", "cow",
-    "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee",
-    "skis", "snowboard", "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard", "tennis racket", "bottle",
-    "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple", "sandwich", "orange",
-    "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch", "potted plant", "bed",
-    "dining table", "toilet", "tv", "laptop", "mouse", "remote", "keyboard", "cell phone", "microwave", "oven",
-    "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"
-]
-
-TARGET_CLASSES = {"bird", "cat", "dog", "horse", "sheep", "cow", "bear", "person"}
+if os.path.exists(CUSTOM_MODEL_PATH):
+    CLASSES = ["eichhörnchen", "filou", "mensch", "vogel"]
+    TARGET_CLASSES = {"eichhörnchen", "filou", "mensch", "vogel"}
+else:
+    CLASSES = [
+        "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat", "traffic light",
+        "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat", "dog", "horse", "sheep", "cow",
+        "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee",
+        "skis", "snowboard", "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard", "tennis racket", "bottle",
+        "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple", "sandwich", "orange",
+        "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch", "potted plant", "bed",
+        "dining table", "toilet", "tv", "laptop", "mouse", "remote", "keyboard", "cell phone", "microwave", "oven",
+        "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"
+    ]
+    TARGET_CLASSES = {"bird", "cat", "dog", "horse", "sheep", "cow", "bear", "person"}
 
 _net = None
 
@@ -73,38 +76,54 @@ def detect_animals(image_path: str) -> list[dict]:
         # Das meiste YOLOv8-Training nutzt 640x640
         input_w, input_h = 640, 640
         
+        if os.path.exists(CUSTOM_MODEL_PATH):
+            input_w, input_h = 1280, 1280
+        
         # BGR zu RGB (swapRB=True) und Skalierung (1/255.0)
         blob = cv2.dnn.blobFromImage(image, 1/255.0, (input_w, input_h), swapRB=True, crop=False)
         net.setInput(blob)
         
         # Forward pass liefert Outout Shape (1, 84, 8400)
         preds = net.forward()
-        preds = np.transpose(preds[0]) # transformiere zu (8400, 84)
 
         boxes = []
         confidences = []
         class_ids = []
 
-        # Parse alle Zeilen
-        for row in preds:
-            # Klassenscores starten ab Index 4
-            classes_scores = row[4:]
-            class_id = np.argmax(classes_scores)
-            confidence = classes_scores[class_id]
+        # ONNX export format can vary
+        # For an output shape of like (1, 300, 6) which is [batch, max_det, 6=x1,y1,x2,y2,conf,class]
+        if len(preds.shape) == 3 and preds.shape[2] == 6:
+            for row in preds[0]:
+                x1, y1, x2, y2, conf, class_id = row
+                if conf > 0.40:
+                    x_min = x1 / input_w
+                    y_min = y1 / input_h
+                    w_rel = (x2 - x1) / input_w
+                    h_rel = (y2 - y1) / input_h
+                    boxes.append([x_min, y_min, w_rel, h_rel])
+                    confidences.append(float(conf))
+                    class_ids.append(int(class_id))
+        else:
+            preds = np.transpose(preds[0]) # transformiere zu (8400, 84) oder (N, classes+4)
+            for row in preds:
+                # Klassenscores starten ab Index 4
+                classes_scores = row[4:]
+                class_id = np.argmax(classes_scores)
+                confidence = classes_scores[class_id]
 
-            if confidence > 0.40:
-                # Koordinaten liegen skaliert auf den 640x640 Input vor
-                cx, cy, w, h = row[0:4]
-                
-                # Berechne obere linke Ecke (auf 0.0 - 1.0 normalisiert)
-                x_min = (cx - w / 2) / input_w
-                y_min = (cy - h / 2) / input_h
-                w_rel = w / input_w
-                h_rel = h / input_h
+                if confidence > 0.40:
+                    # Koordinaten liegen skaliert auf den 640x640 oder 1280x1280 Input vor
+                    cx, cy, w, h = row[0:4]
+                    
+                    # Berechne obere linke Ecke (auf 0.0 - 1.0 normalisiert)
+                    x_min = (cx - w / 2) / input_w
+                    y_min = (cy - h / 2) / input_h
+                    w_rel = w / input_w
+                    h_rel = h / input_h
 
-                boxes.append([x_min, y_min, w_rel, h_rel])
-                confidences.append(float(confidence))
-                class_ids.append(int(class_id))
+                    boxes.append([x_min, y_min, w_rel, h_rel])
+                    confidences.append(float(confidence))
+                    class_ids.append(int(class_id))
         
         # Listen reduzieren, falls nichts gefunden wurde
         if not boxes:
@@ -130,7 +149,8 @@ def detect_animals(image_path: str) -> list[dict]:
                 translation = {
                     "bird": "Vogel", "cat": "Katze", "dog": "Hund", 
                     "horse": "Pferd", "sheep": "Schaf", "cow": "Kuh",
-                    "person": "Mensch", "bear": "Bär"
+                    "person": "Mensch", "bear": "Bär",
+                    "eichhörnchen": "Eichhörnchen", "filou": "Filou", "mensch": "Mensch", "vogel": "Vogel"
                 }
                 translated_tag = translation.get(tag, tag)
                 
