@@ -252,34 +252,43 @@ export function MediaGrid({ items, onSeen, onDelete }: Props) {
                     )}
 
                     {/* AI Bounding Boxes overlay */}
-                    {(() => {
-                      let parsedTags: Array<string | {label: string, confidence?: number, box?: number[]}> = [];
-                      try {
-                        if (item.tags) parsedTags = JSON.parse(item.tags);
-                      } catch(e) {}
-                      
-                      return parsedTags.map((tag, tIdx) => {
-                        if (typeof tag === 'object' && tag.box) {
-                          const [x1, y1, x2, y2] = tag.box;
-                          return (
-                            <div 
-                              key={`box-${item.id}-${tIdx}`}
-                              className="absolute border border-accent rounded-sm z-[5] pointer-events-none"
-                              style={{
-                                left: `${x1 * 100}%`,
-                                top: `${y1 * 100}%`,
-                                width: `${(x2 - x1) * 100}%`,
-                                height: `${(y2 - y1) * 100}%`,
-                                boxShadow: '0 0 4px rgba(74,222,128,0.4) inset, 0 0 4px rgba(74,222,128,0.4)',
-                              }}
-                            >
-                              <span className="absolute -top-3.5 -left-px bg-accent text-bg text-[8px] font-bold px-0.5 rounded-t-sm whitespace-nowrap">
-                                {(tag as any).label}
+                    {item.tags && (() => {
+                      let tags: Array<{ label?: string; confidence?: number; box?: number[] }> = [];
+                      try { tags = JSON.parse(item.tags); } catch { return null; }
+                      return tags.map((tag, tIdx) => {
+                        if (!tag.box) return null;
+                        const [x1, y1, x2, y2] = tag.box;
+                        return (
+                          <div
+                            key={`box-${item.id}-${tIdx}`}
+                            className="absolute z-[5] pointer-events-none"
+                            style={{
+                              left: `${x1 * 100}%`,
+                              top:  `${y1 * 100}%`,
+                              width:  `${(x2 - x1) * 100}%`,
+                              height: `${(y2 - y1) * 100}%`,
+                              border: '1px solid rgba(255,255,255,0.45)',
+                            }}
+                          >
+                            {tag.label && (
+                              <span style={{
+                                position: 'absolute',
+                                bottom: '100%',
+                                left: 0,
+                                marginBottom: 2,
+                                background: 'rgba(0,0,0,0.55)',
+                                color: 'rgba(255,255,255,0.85)',
+                                padding: '0 4px',
+                                fontSize: 7,
+                                lineHeight: '14px',
+                                borderRadius: 2,
+                                whiteSpace: 'nowrap',
+                              }}>
+                                {tag.label}
                               </span>
-                            </div>
-                          );
-                        }
-                        return null;
+                            )}
+                          </div>
+                        );
                       });
                     })()}
 
