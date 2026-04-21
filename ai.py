@@ -14,7 +14,10 @@ _MODELS_DIR = os.path.join(_BASE_DIR, "models")
 CUSTOM_MODEL_PATH = os.path.join(_MODELS_DIR, "best.onnx")
 
 # Github URL für das unmodifizierte Standard YOLOv8 Nano Modell (Coco Dataset)
-FALLBACK_MODEL_URL = "https://github.com/ibaiGorordo/ONNX-YOLOv8-Object-Detection/raw/main/models/yolov8n.onnx"
+FALLBACK_MODEL_URL = "https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8n.pt"
+# Das Default wird jetzt aus pt in ONNX umgewandelt oder wir nehmen direkt ein ONNX, wenn verfuegbar.
+# Da direkte ONNX URLs oft offline gehen, nehmen wir eine bekannte ONNX Quelle:
+FALLBACK_MODEL_URL = "https://github.com/AndreyGermanov/yolov8_onnx_cplusplus/raw/refs/heads/main/models/yolov8n.onnx"
 DEFAULT_MODEL_PATH = os.path.join(_MODELS_DIR, "yolov8n.onnx")
 
 # YOLOv8 base COCO Classes
@@ -50,7 +53,9 @@ def _download_model():
     # 3. Sonst downloade das default
     log.info("Lade Standard YOLOv8 Modell herunter (yolov8n.onnx) ...")
     try:
-        urllib.request.urlretrieve(FALLBACK_MODEL_URL, DEFAULT_MODEL_PATH)
+        # Fallback falls die alte GitHub Domain 404 liefert...
+        # Um ganz sicher zu gehen nutzen wir einen Mirror, der garantiert da ist.
+        urllib.request.urlretrieve("https://github.com/AndreyGermanov/yolov8_onnx_cplusplus/raw/main/models/yolov8n.onnx", DEFAULT_MODEL_PATH)
     except Exception as e:
         log.error(f"Fehler beim Download des Default-Modells: {e}")
     return DEFAULT_MODEL_PATH
