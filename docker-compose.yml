@@ -29,6 +29,7 @@ services:
     privileged: true
     volumes:
       - ./data:/data
+      - ./models:/app/models
       - /var/run/dbus:/var/run/dbus
       - /run/dbus:/run/dbus:ro
     # -------------------------------------------------------------
