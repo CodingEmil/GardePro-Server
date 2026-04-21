@@ -1,9 +1,10 @@
 import os
+import sys
 import db
 import ai
 from sync import ARCHIVE_DIR
 
-def run():
+def run(force=False):
     print("Starte KI-Scan für bereits vorhandene Bilder...")
     items = db.get_all_media()
     
@@ -11,8 +12,8 @@ def run():
     updated = 0
     
     for item in items:
-        # Überspringe Dateien, die schon Tags haben (wenn nicht '[]', also leere Liste)
-        if item.get("tags") and item["tags"] != '[]':
+        # Überspringe Dateien, die schon Tags haben (wenn nicht erzwungen)
+        if not force and item.get("tags") and item["tags"] != '[]':
             continue
             
         fid = item["id"]
@@ -44,4 +45,5 @@ def run():
     print(f"Scan beendet! {count} Bilder geprüft, {updated} Bilder mit Tieren aktualisiert.")
 
 if __name__ == "__main__":
-    run()
+    force_scan = "--force" in sys.argv
+    run(force=force_scan)
