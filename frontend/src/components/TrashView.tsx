@@ -4,6 +4,7 @@ import Video from 'yet-another-react-lightbox/plugins/video';
 import 'yet-another-react-lightbox/styles.css';
 import type { MediaItem } from '../types';
 import { MetaPanel } from './MetaPanel';
+import { AIOverlayLightbox } from './AIOverlayLightbox';
 
 export function TrashView({ onCountChange }: { onCountChange: (n: number) => void }) {
   const [items, setItems]     = useState<MediaItem[]>([]);
@@ -244,6 +245,10 @@ export function TrashView({ onCountChange }: { onCountChange: (n: number) => voi
             'close',
           ],
         }}
+      />
+      <AIOverlayLightbox 
+         open={lightboxIndex >= 0} 
+         item={lightboxIndex >= 0 ? items[lightboxIndex] : null} 
       />
     </div>
   );

@@ -6,6 +6,7 @@ import type { MediaItem } from '../types';
 import { MetaPanel } from './MetaPanel';
 import { extractCameraDate } from '../utils/cameraDate';
 import { ConfirmModal } from './ConfirmModal';
+import { AIOverlayLightbox } from './AIOverlayLightbox';
 
 interface Props {
   items: MediaItem[];
@@ -370,6 +371,10 @@ export function MediaGrid({ items, onSeen, onDelete }: Props) {
         }}
         slides={slides}
         plugins={[Video]}
+      />
+      <AIOverlayLightbox 
+         open={lightboxIndex >= 0} 
+         item={lightboxIndex >= 0 ? items[lightboxIndex] : null} 
       />
     </>
   );
