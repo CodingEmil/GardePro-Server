@@ -440,6 +440,9 @@ def serve_thumbnail(fid):
 
 @app.route("/media/<path:filename>")
 def serve_media(filename):
+    boxed_path = os.path.join(ARCHIVE_DIR, "boxed", filename)
+    if os.path.exists(boxed_path) and request.args.get("download") != "1":
+        return send_from_directory(os.path.join(ARCHIVE_DIR, "boxed"), filename)
     return send_from_directory(ARCHIVE_DIR, filename)
 
 # ── React app (catch-all — must be LAST route) ────────────────────────────

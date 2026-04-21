@@ -25,12 +25,12 @@ def run(force=False):
             if ext == "jpg" and os.path.exists(path):
                 tags = ai.detect_animals(path)
                 if tags:
-                    ai.draw_boxes_on_image(path, tags)
+                    ai.draw_boxes_on_image(path, tags, is_thumb=False)
                     
                     # Male den Kasten auch aufs Thumbnail
                     thumb_path = os.path.join(ARCHIVE_DIR, "thumbs", f"{fid}.jpg")
                     if os.path.exists(thumb_path):
-                        ai.draw_boxes_on_image(thumb_path, tags)
+                        ai.draw_boxes_on_image(thumb_path, tags, is_thumb=True)
                         
             elif ext == "mp4":
                 # Versuche das Thumbnail zu scannen
@@ -38,7 +38,7 @@ def run(force=False):
                 if os.path.exists(thumb_path):
                     tags = ai.detect_animals(thumb_path)
                     if tags:
-                        ai.draw_boxes_on_image(thumb_path, tags)
+                        ai.draw_boxes_on_image(thumb_path, tags, is_thumb=True)
                     
             if tags:
                 db.set_tags(fid, tags)

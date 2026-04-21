@@ -190,7 +190,7 @@ def detect_animals(image_path: str) -> list[dict]:
         log.error(f"Fehler bei AI Erkennung {image_path}: {e}")
         return []
 
-def draw_boxes_on_image(image_path: str, detections: list[dict]):
+def draw_boxes_on_image(image_path: str, detections: list[dict], is_thumb: bool = False):
     """Zeichnet Kästen um erkannte Tiere in das übergebene Bild."""
     if not detections or not os.path.exists(image_path):
         return
@@ -213,6 +213,14 @@ def draw_boxes_on_image(image_path: str, detections: list[dict]):
                 cv2.putText(img, f"{det['label']} {int(det['confidence']*100)}%", 
                             (x1, max(20, y1 - 10)), cv2.FONT_HERSHEY_SIMPLEX, 
                             font_scale, (0, 0, 255), thickness)
-        cv2.imwrite(image_path, img)
+        if is_thumb:
+            cv2.imwrite(image_path, img)
+        else:
+            dirname = os.path.dirname(image_path)
+            basename = os.path.basename(image_path)
+            boxed_dir = os.path.join(dirname, "boxed")
+            os.makedirs(boxed_dir, exist_ok=True)
+            boxed_path = os.path.join(boxed_dir, basename)
+            cv2.imwrite(boxed_path, img)
     except Exception as e:
         log.error(f"Fehler beim Zeichnen der AI Kästen auf {image_path}: {e}")
