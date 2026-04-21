@@ -286,10 +286,16 @@ def _download_item(session, ip: str, port: int, item: dict) -> bool:
                 try:
                     if ext == "jpg":
                         tags = ai.detect_animals(path)
-                        if tags: db.set_tags(fid, tags)
+                        if tags: 
+                            db.set_tags(fid, tags)
+                            ai.draw_boxes_on_image(path, tags)
+                            if thumb_downloaded:
+                                ai.draw_boxes_on_image(thumb_path, tags)
                     elif thumb_downloaded:
                         tags = ai.detect_animals(thumb_path)
-                        if tags: db.set_tags(fid, tags)
+                        if tags: 
+                            db.set_tags(fid, tags)
+                            ai.draw_boxes_on_image(thumb_path, tags)
                 except Exception as e:
                     log.warning("KI-Fehler bei Item %s: %s", fid, e)
 

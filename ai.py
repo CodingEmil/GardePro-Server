@@ -4,6 +4,12 @@ import os
 import urllib.request
 import logging
 
+try:
+    import onnxruntime as ort
+    HAS_ORT = True
+except ImportError:
+    HAS_ORT = False
+
 log = logging.getLogger("gardepro.ai")
 
 _BASE_DIR = os.path.dirname(__file__)
@@ -64,8 +70,11 @@ def _get_net():
     global _net
     if _net is None:
         model_path = _download_model()
-        log.info(f"Lade YOLOv8 ONNX Modell in den Arbeitsspeicher: {model_path}")
-        _net = cv2.dnn.readNetFromONNX(model_path)
+        log.info(f"Lade YOLOv8 ONNX Modell in den Arbeitsspeicher: {model_path} (ORT: {HAS_ORT})")
+        if HAS_ORT:
+            _net = ort.InferenceSession(model_path)
+        else:
+            _net = cv2.dnn.readNetFromONNX(model_path)
     return _net
 
 def detect_animals(image_path: str) -> list[dict]:
@@ -86,10 +95,13 @@ def detect_animals(image_path: str) -> list[dict]:
         
         # BGR zu RGB (swapRB=True) und Skalierung (1/255.0)
         blob = cv2.dnn.blobFromImage(image, 1/255.0, (input_w, input_h), swapRB=True, crop=False)
-        net.setInput(blob)
         
-        # Forward pass liefert Outout Shape (1, 84, 8400)
-        preds = net.forward()
+        if HAS_ORT:
+            input_name = net.get_inputs()[0].name
+            preds = net.run(None, {input_name: blob})[0]
+        else:
+            net.setInput(blob)
+            preds = net.forward()
 
         boxes = []
         confidences = []
@@ -176,3 +188,31 @@ def detect_animals(image_path: str) -> list[dict]:
 
     except Exception as e:
         log.error(f"Fehler bei AI Erkennung {image_path}: {e}")
+        return []
+
+def draw_boxes_on_image(image_path: str, detections: list[dict]):
+    """Zeichnet Kästen um erkannte Tiere in das übergebene Bild."""
+    if not detections or not os.path.exists(image_path):
+        return
+    try:
+        img = cv2.imread(image_path)
+        if img is None:
+            return
+        h, w = img.shape[:2]
+        for det in detections:
+            box = det.get("box", [])
+            if len(box) == 4:
+                x1, y1, x2, y2 = [max(0, int(v * w)) if i % 2 == 0 else max(0, int(v * h)) for i, v in enumerate(box)]
+                # Ensure coordinates are within bounds
+                x1, x2 = min(x1, w), min(x2, w)
+                y1, y2 = min(y1, h), min(y2, h)
+                
+                cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), max(2, int(w/500))) # roter Kasten
+                font_scale = max(0.5, w/1000)
+                thickness = max(1, int(w/500))
+                cv2.putText(img, f"{det['label']} {int(det['confidence']*100)}%", 
+                            (x1, max(20, y1 - 10)), cv2.FONT_HERSHEY_SIMPLEX, 
+                            font_scale, (0, 0, 255), thickness)
+        cv2.imwrite(image_path, img)
+    except Exception as e:
+        log.error(f"Fehler beim Zeichnen der AI Kästen auf {image_path}: {e}")
